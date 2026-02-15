@@ -1,0 +1,637 @@
+
+--[[ 
+    Source script taken from: https://github.com/Roblox/creator-docs/blob/main/content/en-us/characters/emotes.md
+
+    scriptblox: https://scriptblox.com/script/Universal-Script-7yd7-I-Emote-Script-48024
+]]
+
+
+if _G.EmotesGUIRunning then
+    getgenv().Notify({
+        Title = '7yd7 | Emote',
+        Content = 'âš ï¸ It works It actually works',
+        Duration = 5
+    })
+    return
+end
+_G.EmotesGUIRunning = true
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Menu-7yd7/refs/heads/Script/GUIS/Off-site/Notify.lua"))()
+
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local request = http_request or (syn and syn.request) or request
+
+local function GetAsset(asset)
+    if not asset or asset == "" then return "" end
+    local assetStr = tostring(asset)
+    
+    _G.AssetCache = _G.AssetCache or {}
+    if _G.AssetCache[assetStr] then return _G.AssetCache[assetStr] end
+
+    if not assetStr:find("://") and tonumber(assetStr) then
+        local id = "rbxassetid://" .. assetStr
+        _G.AssetCache[assetStr] = id
+        return id
+    end
+    
+    if assetStr:find("rbxassetid://") or assetStr:find("rbxasset://") or assetStr:find("rbxthumb://") then
+        return assetStr
+    end
+    
+    if assetStr:find("http") then
+        local targetUrl = assetStr
+        if targetUrl:find("github.com") and targetUrl:find("/blob/") then
+            targetUrl = targetUrl:gsub("github.com", "raw.githubusercontent.com"):gsub("/blob/", "/")
+        end
+
+        local filename = targetUrl:match("([^/]+)$") or "asset.png"
+        filename = filename:match("([^%?]+)") or filename
+        if not filename:find("%.") then filename = filename .. ".png" end
+        filename = filename:gsub("[%c%s%*%?%\"%<%>%|]", "_")
+        
+        local path = "7yd7/Assets/" .. filename
+        
+        if isfile(path) then
+            local success, result = pcall(function() return getcustomasset(path) end)
+            if success and result then
+                _G.AssetCache[assetStr] = result
+                return result
+            end
+        else
+            if not isfolder("7yd7/Assets") then 
+                pcall(function()
+                    if not isfolder("7yd7") then makefolder("7yd7") end
+                    makefolder("7yd7/Assets") 
+                end)
+            end
+            
+            local success, content = pcall(function() return game:HttpGet(targetUrl) end)
+            if success and content and content ~= "" then
+                local low = content:sub(1, 100):lower()
+                if low:find("<!doctype") or low:find("<html") or low:find("<head") then
+                    warn("7yd7 | GetAsset: Downloaded content appears to be HTML. Link might be incorrect: " .. targetUrl)
+                    return ""
+                end
+                
+                pcall(function() writefile(path, content) end)
+                task.wait(0.2) 
+                
+                local s, result = pcall(function() return getcustomasset(path) end)
+                if s and result then
+                    _G.AssetCache[assetStr] = result
+                    return result
+                end
+            end
+        end
+    end
+    
+    return assetStr
+end
+
+local function NormalizeUrl(url)
+    if not url or url == "" then return url end
+    local targetUrl = tostring(url)
+    if targetUrl:find("github.com") and targetUrl:find("/blob/") then
+        targetUrl = targetUrl:gsub("github.com", "raw.githubusercontent.com"):gsub("/blob/", "/")
+    end
+    return targetUrl
+end
+
+local DEFAULT_WHEEL_BG = "rbxasset://textures/ui/Emotes/Large/SegmentedCircle.png"
+local wheelImgState = setmetatable({}, { __mode = "k" })
+local checkEmotesMenuExists
+
+local function SetWheelImageMode(bgImg, isCustom)
+    if not bgImg then return end
+    if not wheelImgState[bgImg] then
+        wheelImgState[bgImg] = {
+            ScaleType = bgImg.ScaleType,
+            SliceCenter = bgImg.SliceCenter,
+            SliceScale = bgImg.SliceScale
+        }
+    end
+
+    if isCustom then
+        bgImg.ScaleType = Enum.ScaleType.Stretch
+        bgImg.SliceCenter = Rect.new(0, 0, 0, 0)
+        bgImg.SliceScale = 1
+    else
+        local st = wheelImgState[bgImg]
+        if st then
+            bgImg.ScaleType = st.ScaleType
+            bgImg.SliceCenter = st.SliceCenter
+            bgImg.SliceScale = st.SliceScale
+        end
+    end
+end
+
+local function ParseGifInfo(bytes)
+    if not bytes or #bytes < 13 then return nil end
+    if bytes:sub(1, 3) ~= "GIF" then return nil end
+    local function u16le(pos)
+        local b1 = bytes:byte(pos) or 0
+        local b2 = bytes:byte(pos + 1) or 0
+        return b1 + b2 * 256
+    end
+    local width = u16le(7)
+    local height = u16le(9)
+    local packed = bytes:byte(11) or 0
+    local gctFlag = bit32.band(packed, 0x80) ~= 0
+    local gctSize = bit32.band(packed, 0x07)
+    local offset = 13
+    if gctFlag then
+        offset = offset + (3 * (2 ^ (gctSize + 1)))
+    end
+
+    local frames = 0
+    local delays = {}
+    local pendingDelay = nil
+
+    local function skipSubBlocks(pos)
+        while pos <= #bytes do
+            local size = bytes:byte(pos) or 0
+            pos = pos + 1
+            if size == 0 then
+                break
+            end
+            pos = pos + size
+        end
+        return pos
+    end
+
+    while offset <= #bytes do
+        local b = bytes:byte(offset)
+        if not b then break end
+        if b == 0x3B then
+            break
+        elseif b == 0x21 then
+            local label = bytes:byte(offset + 1) or 0
+            if label == 0xF9 then
+                local delay = u16le(offset + 4)
+                pendingDelay = delay
+                offset = offset + 8
+            else
+                offset = skipSubBlocks(offset + 2)
+            end
+        elseif b == 0x2C then
+            frames = frames + 1
+            if pendingDelay then
+                table.insert(delays, pendingDelay)
+                pendingDelay = nil
+            end
+            local packedImg = bytes:byte(offset + 9) or 0
+            local lctFlag = bit32.band(packedImg, 0x80) ~= 0
+            local lctSize = bit32.band(packedImg, 0x07)
+            offset = offset + 10
+            if lctFlag then
+                offset = offset + (3 * (2 ^ (lctSize + 1)))
+            end
+            offset = offset + 1
+            offset = skipSubBlocks(offset)
+        else
+            offset = offset + 1
+        end
+    end
+
+    local totalDelay = 0
+    for _, d in ipairs(delays) do
+        totalDelay = totalDelay + d
+    end
+    local avgDelay = (#delays > 0) and (totalDelay / #delays) or 10
+
+    return {
+        width = width,
+        height = height,
+        frames = frames > 0 and frames or #delays,
+        totalDelayCs = totalDelay,
+        avgDelayCs = avgDelay
+    }
+end
+
+local function ParsePngInfo(bytes)
+    if not bytes or #bytes < 24 then return nil end
+    if bytes:sub(1, 8) ~= "\137PNG\r\n\26\n" then return nil end
+    local function u32be(pos)
+        local b1 = bytes:byte(pos) or 0
+        local b2 = bytes:byte(pos + 1) or 0
+        local b3 = bytes:byte(pos + 2) or 0
+        local b4 = bytes:byte(pos + 3) or 0
+        return ((b1 * 256 + b2) * 256 + b3) * 256 + b4
+    end
+    local width = u32be(17)
+    local height = u32be(21)
+    if width <= 0 or height <= 0 then return nil end
+    return { width = width, height = height }
+end
+
+local function LooksLikeGif(src)
+    if not src or src == "" then return false end
+    local s = tostring(src):lower()
+    return s:find("%.gif") or s:find("format=gif") or s:find("image/gif")
+end
+
+local wheelGifConnection = nil
+local function StopWheelGifAnimation()
+    if wheelGifConnection then
+        wheelGifConnection:Disconnect()
+        wheelGifConnection = nil
+    end
+end
+
+local function StartWheelGifAnimation(bgImg, data)
+    StopWheelGifAnimation()
+    if not bgImg or not data or not data.sprite then return end
+
+    local frames = data.frames or 0
+    local frameW = data.frameW or 0
+    local frameH = data.frameH or 0
+    if frames <= 0 or frameW <= 0 or frameH <= 0 then return end
+
+    local cols = data.cols or 0
+    if cols <= 0 then
+        cols = math.max(1, math.floor(1024 / frameW))
+    end
+    local delay = data.delay
+    if not delay then
+        local delayCs = (data.gifInfo and data.gifInfo.avgDelayCs) or 10
+        delay = math.max(0.02, (delayCs / 100))
+    end
+
+    bgImg.Image = data.sprite
+    bgImg.ImageRectSize = Vector2.new(frameW, frameH)
+
+    local current = 0
+    local acc = 0
+    wheelGifConnection = RunService.Heartbeat:Connect(function(dt)
+        acc = acc + dt
+        if acc < delay then return end
+        acc = 0
+        current = (current + 1) % frames
+        local x = (current % cols) * frameW
+        local y = math.floor(current / cols) * frameH
+        bgImg.ImageRectOffset = Vector2.new(x, y)
+    end)
+end
+
+local WheelAnimCache = {}
+
+local function MakeWheelAnimKey(gifUrl, sheetUrl)
+    return tostring(gifUrl or "") .. "|" .. tostring(sheetUrl or "")
+end
+
+local function AreWheelAnimMetaEqual(a, b)
+    if a == b then return true end
+    if not a or not b then return false end
+    return a.Enabled == b.Enabled
+        and a.FrameHeight == b.FrameHeight
+        and a.FrameWidth == b.FrameWidth
+        and a.FPS == b.FPS
+        and a.Frames == b.Frames
+        and a.Cols == b.Cols
+        and a.Rows == b.Rows
+        and a.GifUrl == b.GifUrl
+        and a.SheetUrl == b.SheetUrl
+end
+
+local ConfigPath = "7yd7/EmoteSettings.json"
+local Config = {
+    NotifyEnabled = true,
+    SearchVisible = true,
+    FavVisible = true,
+    ModeVisible = true,
+    FreezeVisible = true,
+    SpeedVisible = true,
+    NavVisible = true,
+    EmoteSpeed = 1,
+    EmoteSpeedEnabled = false,
+    SelectedTheme = "Default",
+    EmotePage = 1,
+    AnimationPage = 1
+}
+
+local Under, UIListLayout, _1left, _9right, _4pages, _3TextLabel, _2Routenumber, Top, EmoteWalkButton, UICorner1,
+    UIListLayout_2, UICorner, Search, Favorite, UICorner2, UICorner_2, SpeedEmote, UICorner_4, SpeedBox, UICorner_5, Changepage,
+    Reload, UICorner_6
+local speedEmoteEnabled = false
+local currentMode = "emote"
+local emotesWalkEnabled = false
+local favoriteEnabled = false
+
+local function ApplyUIVisibility()
+    pcall(function()
+        if Search and Top then Top.Visible = Config.SearchVisible end
+        if Favorite then Favorite.Visible = Config.FavVisible end
+        if Changepage then Changepage.Visible = Config.ModeVisible end
+        if EmoteWalkButton then EmoteWalkButton.Visible = Config.FreezeVisible end
+        if SpeedEmote then SpeedEmote.Visible = Config.SpeedVisible end
+        if SpeedBox then 
+            SpeedBox.Visible = (Config.SpeedVisible and speedEmoteEnabled) 
+        end
+        if Under then Under.Visible = Config.NavVisible end
+        if Reload then 
+            Reload.Visible = (currentMode == "animation" and Config.NavVisible) 
+        end
+    end)
+end
+
+local function SaveConfig()
+    if not isfolder("7yd7") then makefolder("7yd7") end
+    writefile(ConfigPath, HttpService:JSONEncode(Config))
+end
+
+local function LoadConfig()
+    if isfile(ConfigPath) then
+        local success, decoded = pcall(function() return HttpService:JSONDecode(readfile(ConfigPath)) end)
+        if success and type(decoded) == "table" then
+            for k, v in pairs(decoded) do Config[k] = v end
+        end
+    end
+end
+LoadConfig()
+
+local rawNotify = getgenv().Notify
+getgenv().Notify = function(data)
+    if Config.NotifyEnabled then
+        rawNotify(data)
+    end
+end
+
+local SettingsLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Settings.lua"))()
+
+local SettingsLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Settings.lua"))()
+
+-- MODIFICATION: Create separate anchored container for the minimize button
+-- This keeps the button fixed in place even if other GUIs are dragged
+local AnchoredToggleContainer = Instance.new("ScreenGui")
+AnchoredToggleContainer.Name = "AnchoredToggleButton"
+AnchoredToggleContainer.Parent = game:GetService("CoreGui")
+AnchoredToggleContainer.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+AnchoredToggleContainer.ResetOnSpawn = false
+AnchoredToggleContainer.IgnoreGuiInset = true
+
+local ToggleBtn = Instance.new("ImageButton")
+ToggleBtn.Name = "ToggleSettings"
+ToggleBtn.Parent = AnchoredToggleContainer -- Parented directly to ScreenGui, not to draggable frame
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+ToggleBtn.BackgroundTransparency = 0.4
+ToggleBtn.Position = UDim2.new(0.005, 0, 0.939, 0) -- Fixed position on screen
+ToggleBtn.Size = UDim2.new(0.027, 0, 0.049, 0)
+ToggleBtn.Image = "rbxassetid://79568054778195"
+ToggleBtn.ZIndex = 10000 -- High ZIndex to stay visible
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 10)
+ToggleCorner.Parent = ToggleBtn
+
+local function getSettingsMainFrame()
+    if SettingsLib and SettingsLib.UI then
+        return SettingsLib.UI:FindFirstChild("MainFrame")
+    end
+    return nil
+end
+
+local function applySettingsToggleStyle()
+    local main = getSettingsMainFrame()
+    if main then
+        ToggleBtn.BackgroundColor3 = main.BackgroundColor3
+    elseif _G.EmoteTheme and _G.EmoteTheme.Background then
+        ToggleBtn.BackgroundColor3 = _G.EmoteTheme.Background
+    end
+end
+
+local function syncToggleVisibility()
+    local main = getSettingsMainFrame()
+    if main then
+        AnchoredToggleContainer.Enabled = not main.Visible
+    else
+        AnchoredToggleContainer.Enabled = true
+    end
+end
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    local main = getSettingsMainFrame()
+    if main then
+        main.Visible = not main.Visible
+        syncToggleVisibility()
+    else
+        SettingsLib.UI.Enabled = not SettingsLib.UI.Enabled
+    end
+end)
+
+applySettingsToggleStyle()
+syncToggleVisibility()
+
+do
+    local main = getSettingsMainFrame()
+    if main then
+        main:GetPropertyChangedSignal("Visible"):Connect(syncToggleVisibility)
+    end
+end
+
+local GeneralTab = SettingsLib.CreateTab("General", 1)
+SettingsLib.AddToggle(GeneralTab, "Show Notifications", "Receive alerts and feedback", Config.NotifyEnabled, function(v)
+    Config.NotifyEnabled = v
+    SaveConfig()
+end)
+local ButtonsTab = SettingsLib.CreateTab("Buttons", 2)
+
+SettingsLib.AddToggle(ButtonsTab, "Search Bar", "Show/Hide the search input", Config.SearchVisible, function(v)
+    Config.SearchVisible = v
+    ApplyUIVisibility()
+    SaveConfig()
+end)
+
+SettingsLib.AddToggle(ButtonsTab, "Favorites Button", "Show/Hide the star button", Config.FavVisible, function(v)
+    Config.FavVisible = v
+    ApplyUIVisibility()
+    SaveConfig()
+end)
+
+SettingsLib.AddToggle(ButtonsTab, "Mode Switcher", "Show/Hide animation mode button", Config.ModeVisible, function(v)
+    Config.ModeVisible = v
+    ApplyUIVisibility()
+    SaveConfig()
+end)
+
+SettingsLib.AddToggle(ButtonsTab, "Freeze Button", "Show/Hide emote freeze button", Config.FreezeVisible, function(v)
+    Config.FreezeVisible = v
+    ApplyUIVisibility()
+    SaveConfig()
+end)
+
+SettingsLib.AddToggle(ButtonsTab, "Speed Button", "Show/Hide the speed controller", Config.SpeedVisible, function(v)
+    Config.SpeedVisible = v
+    ApplyUIVisibility()
+    SaveConfig()
+end)
+
+SettingsLib.AddToggle(ButtonsTab, "Page Controls", "Show/Hide navigation buttons", Config.NavVisible, function(v)
+    Config.NavVisible = v
+    ApplyUIVisibility()
+    SaveConfig()
+end)
+
+local cachedOverlay = nil
+local function getBackgroundOverlay()
+    if cachedOverlay and cachedOverlay.Parent then return cachedOverlay end
+    
+    local success, result = pcall(function()
+        return game:GetService("CoreGui").RobloxGui.EmotesMenu.Children.Main.EmotesWheel.Back.Background
+                   .BackgroundCircleOverlay
+    end)
+    if success and result then
+        cachedOverlay = result
+        return result
+    end
+    return nil
+end
+
+local function DeepCopy(t)
+    local copy = {}
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            copy[k] = DeepCopy(v)
+        else
+            copy[k] = v
+        end
+    end
+    return copy
+end
+
+local function ColorToTable(c) return {math.round(c.R*255), math.round(c.G*255), math.round(c.B*255)} end
+local function TableToColor(t)
+    if type(t) ~= "table" then
+        return Color3.fromRGB(255, 255, 255)
+    end
+    local r = tonumber(t[1]) or 255
+    local g = tonumber(t[2]) or 255
+    local b = tonumber(t[3]) or 255
+    return Color3.fromRGB(r, g, b)
+end
+
+local function GetThemeIconColor(key)
+    local theme = _G.EmoteTheme
+    if theme and theme.IconColors and theme.IconColors[key] then
+        return TableToColor(theme.IconColors[key])
+    end
+    if theme and theme.ImageColor then
+        return theme.ImageColor
+    end
+    return Color3.new(1, 1, 1)
+end
+
+local ApplyFavoriteButtonVisual
+local function updateGUIColors()
+    local backgroundOverlay = getBackgroundOverlay()
+    if not backgroundOverlay then
+        return
+    end
+
+    local theme = _G.EmoteTheme
+    if not theme then return end
+    
+    local bgColor = theme.Background
+    local accentColor = theme.Accent
+    local imgColor = theme.ImageColor
+    local bgTransparency = backgroundOverlay.BackgroundTransparency
+
+    local function getIconColor(key)
+        if theme.IconColors and theme.IconColors[key] then
+            return TableToColor(theme.IconColors[key])
+        end
+        return imgColor
+    end
+
+    if _1left then
+        _1left.ImageColor3 = getIconColor("Left")
+        _1left.ImageTransparency = bgTransparency
+    end
+
+    if _9right then
+        _9right.ImageColor3 = getIconColor("Right")
+        _9right.ImageTransparency = bgTransparency
+    end
+
+    if _4pages then
+        _4pages.TextColor3 = bgColor
+        _4pages.TextTransparency = bgTransparency
+    end
+
+    if _3TextLabel then
+        _3TextLabel.TextColor3 = bgColor
+        _3TextLabel.TextTransparency = bgTransparency
+    end
+
+    if _2Routenumber then
+        _2Routenumber.TextColor3 = bgColor
+        _2Routenumber.TextTransparency = bgTransparency
+    end
+
+    if Top then
+        Top.BackgroundColor3 = bgColor
+        Top.BackgroundTransparency = bgTransparency
+    end
+
+    if EmoteWalkButton then
+        EmoteWalkButton.BackgroundColor3 = bgColor
+        EmoteWalkButton.BackgroundTransparency = bgTransparency
+    end
+
+    if SpeedEmote then
+        SpeedEmote.BackgroundColor3 = bgColor
+        SpeedEmote.BackgroundTransparency = bgTransparency
+    end
+
+     if Changepage then
+        Changepage.BackgroundColor3 = bgColor
+        Changepage.BackgroundTransparency = bgTransparency
+    end
+
+    if SpeedBox then
+        SpeedBox.BackgroundColor3 = bgColor
+        SpeedBox.BackgroundTransparency = bgTransparency
+    end
+
+    if Favorite then
+        Favorite.BackgroundColor3 = bgColor
+        Favorite.BackgroundTransparency = bgTransparency
+    end
+
+    if Reload then
+        Reload.BackgroundColor3 = bgColor
+        Reload.BackgroundTransparency = bgTransparency
+    end
+    
+    if ApplyFavoriteButtonVisual then
+        ApplyFavoriteButtonVisual()
+    end
+    ApplyUIVisibility()
+    applySettingsToggleStyle()
+end
+
+ApplyFavoriteButtonVisual = function()
+    if not Favorite then return end
+    local isOn = favoriteEnabled
+    local image = isOn and favoriteIconId or notFavoriteIconId
+    if image and image ~= "" then
+        Favorite.Image = image
+    end
+    local colorKey = isOn and "Favorite" or "NotFavorite"
+    Favorite.ImageColor3 = GetThemeIconColor(colorKey)
+end
+
+-- Optimizing performance: Removed RenderStepped loop
+-- game:GetService("RunService").RenderStepped:Connect(function()
+--     updateGUIColors()
+-- end)
+
+local ThemeTab = SettingsLib.CreateTab("Theme", 3)
+
+local DiscordPromo = SettingsLib.AddItem(ThemeTab, "WANT THEMES?", "Join our Discord for themes!")
+DiscordPromo.LayoutOrder = -1
+
+local CopyBtn = SettingsLib:Create("TextButton", {
+    Parent = DiscordPromo,
+    BackgroundColor3 = Color3.fromRGB(0, 255, 150),
+   
