@@ -9,7 +9,7 @@
 if _G.EmotesGUIRunning then
     getgenv().Notify({
         Title = '7yd7 | Emote',
-        Content = '[WARNING] It works It actually works',
+        Content = 'âš ï¸ It works It actually works',
         Duration = 5
     })
     return
@@ -359,37 +359,73 @@ end
 
 local SettingsLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Settings.lua"))()
 
--- ============================================================
--- MODIFICATION: DISABLE ALL DRAGGING
--- ============================================================
+local ToggleContainer = Instance.new("Frame")
+ToggleContainer.Name = "open/Close"
+ToggleContainer.Parent = SettingsLib.UI
+ToggleContainer.BackgroundTransparency = 1
+ToggleContainer.Size = UDim2.fromScale(1, 1)
+ToggleContainer.ZIndex = 5000
+ToggleContainer.Visible = false
+ToggleContainer.Active = false
+ToggleContainer.Selectable = false
 
-local SettingsLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Settings.lua"))()
+local ToggleBtn = Instance.new("ImageButton")
+ToggleBtn.Name = "ToggleSettings"
+ToggleBtn.Parent = ToggleContainer
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+ToggleBtn.BackgroundTransparency = 0.4
+ToggleBtn.Position = UDim2.new(0.005, 0, 0.939, 0)
+ToggleBtn.Size = UDim2.new(0.027, 0, 0.049, 0)
+ToggleBtn.Image = "rbxassetid://79568054778195"
 
--- Disable dragging on all GUI elements
-task.spawn(function()
-    task.wait(1)
-    
-    local function disableDragging(parent)
-        for _, obj in ipairs(parent:GetDescendants()) do
-            if obj:IsA("Frame") or obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
-                obj.Active = false
-                obj.Draggable = false
-            end
-        end
-    end
-    
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 10)
+ToggleCorner.Parent = ToggleBtn
+
+local function getSettingsMainFrame()
     if SettingsLib and SettingsLib.UI then
-        disableDragging(SettingsLib.UI)
-        SettingsLib.UI.DescendantAdded:Connect(function(obj)
-            if obj:IsA("Frame") or obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
-                obj.Active = false
-                obj.Draggable = false
-            end
-        end)
+        return SettingsLib.UI:FindFirstChild("MainFrame")
+    end
+    return nil
+end
+
+local function applySettingsToggleStyle()
+    local main = getSettingsMainFrame()
+    if main then
+        ToggleBtn.BackgroundColor3 = main.BackgroundColor3
+    elseif _G.EmoteTheme and _G.EmoteTheme.Background then
+        ToggleBtn.BackgroundColor3 = _G.EmoteTheme.Background
+    end
+end
+
+local function syncToggleVisibility()
+    local main = getSettingsMainFrame()
+    if main then
+        ToggleContainer.Visible = not main.Visible
+    else
+        ToggleContainer.Visible = true
+    end
+end
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    local main = getSettingsMainFrame()
+    if main then
+        main.Visible = not main.Visible
+        syncToggleVisibility()
+    else
+        SettingsLib.UI.Enabled = not SettingsLib.UI.Enabled
     end
 end)
 
--- ============================================================
+applySettingsToggleStyle()
+syncToggleVisibility()
+
+do
+    local main = getSettingsMainFrame()
+    if main then
+        main:GetPropertyChangedSignal("Visible"):Connect(syncToggleVisibility)
+    end
+end
 
 local GeneralTab = SettingsLib.CreateTab("General", 1)
 SettingsLib.AddToggle(GeneralTab, "Show Notifications", "Receive alerts and feedback", Config.NotifyEnabled, function(v)
@@ -1169,7 +1205,7 @@ SettingsLib.AddIconButton(BtnRow, "108445456753346", function()
             SaveThemes(themes)
             currentThemeName = In.Text
             themeDropdown.Refresh(GetNames())
-            themeDropdown.Button.Text = currentThemeName .. "  "
+            themeDropdown.Button.Text = currentThemeName .. "  â–¼"
             ApplyTheme(themes[currentThemeName])
             popup:Destroy()
         end
@@ -1187,7 +1223,7 @@ SettingsLib.AddIconButton(BtnRow, "71829270056766", function()
         SaveThemes(themes)
         currentThemeName = "Default"
         themeDropdown.Refresh(GetNames())
-        themeDropdown.Button.Text = "Default  "
+        themeDropdown.Button.Text = "Default  â–¼"
         ApplyTheme(themes["Default"])
     end
 end)
@@ -1212,7 +1248,7 @@ SettingsLib.AddIconButton(BtnRow, "117761881427472", function()
             currentThemeName = In.Text
             SaveThemes(themes)
             themeDropdown.Refresh(GetNames())
-            themeDropdown.Button.Text = currentThemeName .. "  "
+            themeDropdown.Button.Text = currentThemeName .. "  â–¼"
             popup:Destroy()
         end
     end)
@@ -1249,7 +1285,7 @@ SettingsLib.AddIconButton(BtnRow, "78317476576895", function()
     local close = Instance.new("TextButton")
     close.Size = UDim2.fromOffset(24, 24)
     close.Position = UDim2.new(1, -30, 0, -30)
-    close.Text = ""
+    close.Text = "Ã—"
     close.Font = Enum.Font.GothamBold
     close.TextSize = 20
     close.BackgroundTransparency = 1
@@ -1278,7 +1314,7 @@ SettingsLib.AddIconButton(BtnRow, "107588515524752", function()
     local close = Instance.new("TextButton")
     close.Size = UDim2.fromOffset(24, 24)
     close.Position = UDim2.new(1, -30, 0, -30)
-    close.Text = ""
+    close.Text = "Ã—"
     close.Font = Enum.Font.GothamBold
     close.TextSize = 20
     close.BackgroundTransparency = 1
@@ -1432,7 +1468,7 @@ end)
 
 getgenv().Notify({
     Title = '7yd7 | Emote',
-    Content = '[WARNING] Script loading...',
+    Content = 'âš ï¸ Script loading...',
     Duration = 5
 })
 
@@ -2308,17 +2344,17 @@ local function toggleFavorite(emoteId, emoteName)
         table.remove(favoriteEmotes, index)
         getgenv().Notify({
             Title = '7yd7 | Favorite System',
-            Content = ' Removed "' .. emoteName .. '" from favorites',
+            Content = 'ðŸ—‘ï¸ Removed "' .. emoteName .. '" from favorites',
             Duration = 3
         })
     else
         table.insert(favoriteEmotes, {
             id = emoteId,
-            name = emoteName .. " - [STAR]"
+            name = emoteName .. " - â­"
         })
         getgenv().Notify({
             Title = '7yd7 | Favorite System',
-            Content = '[OK] Added "' .. emoteName .. '" to favorites',
+            Content = 'âœ… Added "' .. emoteName .. '" to favorites',
             Duration = 3
         })
     end
@@ -2350,18 +2386,18 @@ local function toggleFavoriteAnimation(animationData)
         table.remove(favoriteAnimations, index)
         getgenv().Notify({
             Title = '7yd7 | Favorite System',
-            Content = ' Removed "' .. animationData.name .. '" from favorites',
+            Content = 'ðŸ—‘ï¸ Removed "' .. animationData.name .. '" from favorites',
             Duration = 3
         })
     else
         table.insert(favoriteAnimations, {
             id = animationData.id,
-            name = animationData.name .. " - [STAR]",
+            name = animationData.name .. " - â­",
             bundledItems = animationData.bundledItems
         })
         getgenv().Notify({
             Title = '7yd7 | Favorite System',
-            Content = '[OK] Added "' .. animationData.name .. '" to favorites',
+            Content = 'âœ… Added "' .. animationData.name .. '" to favorites',
             Duration = 3
         })
     end
@@ -2435,7 +2471,7 @@ local function applyAnimation(animationData)
     if not animate or not humanoid then
         getgenv().Notify({
             Title = '7yd7 | Animation Error',
-            Content = '[X] Animate or Humanoid not found',
+            Content = 'âŒ Animate or Humanoid not found',
             Duration = 3
         })
         return
@@ -2449,7 +2485,7 @@ local function applyAnimation(animationData)
     if not bundledItems then
         getgenv().Notify({
             Title = '7yd7 | Animation Error', 
-            Content = '[X] No bundled items found',
+            Content = 'âŒ No bundled items found',
             Duration = 3
         })
         return
@@ -2733,7 +2769,7 @@ local function fetchAllEmotes()
     
     getgenv().Notify({
         Title = '7yd7 | Emote',
-        Content = " Loaded Successfully! Total Emotes: " .. totalEmotesLoaded,
+        Content = "ðŸŽ‰ Loaded Successfully! Total Emotes: " .. totalEmotesLoaded,
         Duration = 5
     })
     
@@ -2781,7 +2817,7 @@ local function searchEmotes(searchTerm)
     if isLoading then
         getgenv().Notify({
             Title = '7yd7 | Emote',
-            Content = '[WARNING] Loading please wait...',
+            Content = 'âš ï¸ Loading please wait...',
             Duration = 5
         })
         return
@@ -2862,7 +2898,7 @@ local function searchAnimations(searchTerm)
     if isLoading then
         getgenv().Notify({
             Title = '7yd7 | Animation',
-            Content = '[WARNING] Loading please wait...',
+            Content = 'âš ï¸ Loading please wait...',
             Duration = 5
         })
         return
@@ -3004,7 +3040,7 @@ local function onCharacterAdded(character)
     applyAnimation(getgenv().lastPlayedAnimation)
     getgenv().Notify({
         Title = '7yd7 | Auto Reload Animation',
-        Content = ' The last animation was automatically \n reapplied',
+        Content = 'ðŸ”„ The last animation was automatically \n reapplied',
         Duration = 3
     })
 end
@@ -3074,7 +3110,7 @@ local function toggleEmoteWalk()
     if emotesWalkEnabled then
         getgenv().Notify({
             Title = '7yd7 | Emote Freeze',
-            Content = "[LOCK] Emote freeze ON",
+            Content = "ðŸ”’ Emote freeze ON",
             Duration = 5
         })
 
@@ -3087,7 +3123,7 @@ local function toggleEmoteWalk()
     else
         getgenv().Notify({
             Title = '7yd7 | Emote Freeze',
-            Content = ' Emote freeze OFF',
+            Content = 'ðŸ”“ Emote freeze OFF',
             Duration = 5
         })
         EmoteWalkButton.Image = defaultButtonImage
@@ -3111,7 +3147,7 @@ local function toggleSpeedEmote()
     if speedEmoteEnabled then
         getgenv().Notify({
             Title = '7yd7 | Speed Emote',
-            Content = " Speed Emote ON",
+            Content = "âš¡ Speed Emote ON",
             Duration = 5
         })
         task.wait(0.1)
@@ -3119,7 +3155,7 @@ local function toggleSpeedEmote()
     else
         getgenv().Notify({
             Title = '7yd7 | Speed Emote',
-            Content = ' Speed Emote OFF',
+            Content = 'âš¡ Speed Emote OFF',
             Duration = 5
         })
         task.wait(0.1)
@@ -3138,7 +3174,7 @@ local function toggleFavoriteMode()
         ApplyFavoriteButtonVisual()
         getgenv().Notify({
             Title = '7yd7 | Favorite System',
-            Content = "[LOCK] Favorite ON",
+            Content = "ðŸ”’ Favorite ON",
             Duration = 5
         })
 
@@ -3151,7 +3187,7 @@ local function toggleFavoriteMode()
         ApplyFavoriteButtonVisual()
         getgenv().Notify({
             Title = '7yd7 | Favorite System',
-            Content = ' Favorite OFF',
+            Content = 'ðŸ”“ Favorite OFF',
             Duration = 3
         })
         
@@ -3201,13 +3237,13 @@ local function toggleAutoReload()
     if getgenv().autoReloadEnabled then
         getgenv().Notify({
             Title = '7yd7 | Auto Reload Animation',
-            Content = " Auto Reload ON",
+            Content = "ðŸ”„ Auto Reload ON",
             Duration = 5
         })
     else
         getgenv().Notify({
             Title = '7yd7 | Auto Reload Animation',
-            Content = ' Auto Reload OFF',
+            Content = 'ðŸ”„ Auto Reload OFF',
             Duration = 3
         })
     end
@@ -3335,7 +3371,7 @@ if Changepage then
             
             getgenv().Notify({
                 Title = '7yd7 | Animation',
-                Content = '[PAGE] Changed to Emote > Animation Mode',
+                Content = 'ðŸ“„ Changed to Emote > Animation Mode',
                 Duration = 3
             })
 
@@ -3353,7 +3389,7 @@ if Changepage then
             
             getgenv().Notify({
                 Title = '7yd7 | Emote', 
-                Content = '[PAGE] Changed to Animation > Emote Mode',
+                Content = 'ðŸ“„ Changed to Animation > Emote Mode',
                 Duration = 3
             })
         end
@@ -3508,7 +3544,7 @@ if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
     loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/OpenEmote.lua"))()
     getgenv().Notify({
         Title = '7yd7 | Emote Mobile',
-        Content = '[MOBILE] Added emote open button for ease of use',
+        Content = 'ðŸ“± Added emote open button for ease of use',
         Duration = 10
     })
 end
@@ -3516,7 +3552,7 @@ end
 if UserInputService.KeyboardEnabled then
     getgenv().Notify({
         Title = '7yd7 | Emote PC',
-        Content = '[PC] Open menu press button "."',
+        Content = 'ðŸ’» Open menu press button "."',
         Duration = 10
     })
 end
