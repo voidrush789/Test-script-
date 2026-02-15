@@ -359,75 +359,37 @@ end
 
 local SettingsLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Settings.lua"))()
 
+-- ============================================================
+-- MODIFICATION: DISABLE ALL DRAGGING
+-- ============================================================
+
 local SettingsLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Settings.lua"))()
 
--- MODIFICATION: Create separate anchored container for the minimize button
--- This keeps the button fixed in place even if other GUIs are dragged
-local AnchoredToggleContainer = Instance.new("ScreenGui")
-AnchoredToggleContainer.Name = "AnchoredToggleButton"
-AnchoredToggleContainer.Parent = game:GetService("CoreGui")
-AnchoredToggleContainer.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-AnchoredToggleContainer.ResetOnSpawn = false
-AnchoredToggleContainer.IgnoreGuiInset = true
-
-local ToggleBtn = Instance.new("ImageButton")
-ToggleBtn.Name = "ToggleSettings"
-ToggleBtn.Parent = AnchoredToggleContainer -- Parented directly to ScreenGui, not to draggable frame
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-ToggleBtn.BackgroundTransparency = 0.4
-ToggleBtn.Position = UDim2.new(0.005, 0, 0.939, 0) -- Fixed position on screen
-ToggleBtn.Size = UDim2.new(0.027, 0, 0.049, 0)
-ToggleBtn.Image = "rbxassetid://79568054778195"
-ToggleBtn.ZIndex = 10000 -- High ZIndex to stay visible
-
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(0, 10)
-ToggleCorner.Parent = ToggleBtn
-
-local function getSettingsMainFrame()
+-- Disable dragging on all GUI elements
+task.spawn(function()
+    task.wait(1)
+    
+    local function disableDragging(parent)
+        for _, obj in ipairs(parent:GetDescendants()) do
+            if obj:IsA("Frame") or obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
+                obj.Active = false
+                obj.Draggable = false
+            end
+        end
+    end
+    
     if SettingsLib and SettingsLib.UI then
-        return SettingsLib.UI:FindFirstChild("MainFrame")
-    end
-    return nil
-end
-
-local function applySettingsToggleStyle()
-    local main = getSettingsMainFrame()
-    if main then
-        ToggleBtn.BackgroundColor3 = main.BackgroundColor3
-    elseif _G.EmoteTheme and _G.EmoteTheme.Background then
-        ToggleBtn.BackgroundColor3 = _G.EmoteTheme.Background
-    end
-end
-
-local function syncToggleVisibility()
-    local main = getSettingsMainFrame()
-    if main then
-        AnchoredToggleContainer.Enabled = not main.Visible
-    else
-        AnchoredToggleContainer.Enabled = true
-    end
-end
-
-ToggleBtn.MouseButton1Click:Connect(function()
-    local main = getSettingsMainFrame()
-    if main then
-        main.Visible = not main.Visible
-        syncToggleVisibility()
-    else
-        SettingsLib.UI.Enabled = not SettingsLib.UI.Enabled
+        disableDragging(SettingsLib.UI)
+        SettingsLib.UI.DescendantAdded:Connect(function(obj)
+            if obj:IsA("Frame") or obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
+                obj.Active = false
+                obj.Draggable = false
+            end
+        end)
     end
 end)
 
-applySettingsToggleStyle()
-syncToggleVisibility()
-
-do
-    local main = getSettingsMainFrame()
-    if main then
-        main:GetPropertyChangedSignal("Visible"):Connect(syncToggleVisibility)
-    end
-end
+-- ============================================================
 
 local GeneralTab = SettingsLib.CreateTab("General", 1)
 SettingsLib.AddToggle(GeneralTab, "Show Notifications", "Receive alerts and feedback", Config.NotifyEnabled, function(v)
@@ -634,4 +596,45 @@ DiscordPromo.LayoutOrder = -1
 local CopyBtn = SettingsLib:Create("TextButton", {
     Parent = DiscordPromo,
     BackgroundColor3 = Color3.fromRGB(0, 255, 150),
-   
+    Position = UDim2.new(1, -95, 0.5, -12),
+    Size = UDim2.new(0, 85, 0, 24),
+    Font = Enum.Font.GothamBold,
+    Text = "COPY LINK",
+    TextColor3 = Color3.fromRGB(24, 25, 28),
+    TextSize = 11
+}, { SettingsLib:Create("UICorner", {CornerRadius = UDim.new(0, 6)}) })
+
+CopyBtn.MouseButton1Click:Connect(function()
+    setclipboard("https://discord.gg/kRfzv2kV7X")
+    getgenv().Notify({Title = "Discord", Content = "Link copied to clipboard!", Duration = 3})
+end)
+
+local ThemeConfigPath = "7yd7/EmoteThemes.json"
+
+local lastSaveTime = 0
+local saveDebounce = 1
+local pendingSave = false
+
+local function SaveThemesImplementation(themes)
+    if not isfolder("7yd7") then makefolder("7yd7") end
+    local toSave = { Themes = {}, Order = {}, Selected = currentThemeName }
+    
+    toSave.Order = themes.Order or {}
+    
+    for name, data in pairs(themes) do
+        if name ~= "Default" and name ~= "Order" and name ~= "Selected" then
+            toSave.Themes[name] = data
+        end
+    end
+    writefile(ThemeConfigPath, HttpService:JSONEncode(toSave))
+end
+
+local function SaveThemes(themes)
+    if pendingSave then 
+        pendingSave = "queued"
+        return 
+    end
+    pendingSave = true
+    task.delay(0.5, function()
+        SaveThemesImplementation(themes)
+        local wa
