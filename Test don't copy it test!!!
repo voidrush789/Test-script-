@@ -1,0 +1,759 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- FILE SAVE/LOAD
+local SAVE_FILE = "transform_roster.json"
+
+local function saveToFile()
+    local data = {}
+    for _, d in ipairs(cardList) do
+        table.insert(data, {name = d.name, userId = d.userId})
+    end
+    local ok = pcall(function()
+        writefile(SAVE_FILE, game:GetService("HttpService"):JSONEncode(data))
+    end)
+end
+
+local function loadFromFile()
+    local ok, content = pcall(function()
+        return readfile(SAVE_FILE)
+    end)
+    if not ok or not content or content == "" then return {} end
+    local dok, data = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(content)
+    end)
+    return (dok and data) and data or {}
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TransformPanel"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+-- MAIN PANEL
+local MainPanel = Instance.new("Frame")
+MainPanel.Name = "MainPanel"
+MainPanel.Size = UDim2.new(0, 220, 0, 260)
+MainPanel.Position = UDim2.new(0.5, -110, 0.5, -130)
+MainPanel.BackgroundColor3 = Color3.fromRGB(8, 8, 14)
+MainPanel.BorderSizePixel = 0
+MainPanel.ClipsDescendants = true
+MainPanel.Parent = ScreenGui
+Instance.new("UICorner", MainPanel).CornerRadius = UDim.new(0, 16)
+local MainStroke = Instance.new("UIStroke", MainPanel)
+MainStroke.Color = Color3.fromRGB(80, 120, 255)
+MainStroke.Thickness = 1.2
+MainStroke.Transparency = 0.3
+local BG_Grad = Instance.new("UIGradient", MainPanel)
+BG_Grad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(12, 12, 22)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(6, 6, 12))
+})
+BG_Grad.Rotation = 135
+
+-- TITLE BAR
+local TitleBar = Instance.new("Frame", MainPanel)
+TitleBar.Size = UDim2.new(1, 0, 0, 28)
+TitleBar.BackgroundColor3 = Color3.fromRGB(16, 16, 30)
+TitleBar.BorderSizePixel = 0
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 16)
+local TF = Instance.new("Frame", TitleBar)
+TF.Size = UDim2.new(1, 0, 0.5, 0)
+TF.Position = UDim2.new(0, 0, 0.5, 0)
+TF.BackgroundColor3 = Color3.fromRGB(16, 16, 30)
+TF.BorderSizePixel = 0
+
+local TitleLine = Instance.new("Frame", TitleBar)
+TitleLine.Size = UDim2.new(1, 0, 0, 1)
+TitleLine.Position = UDim2.new(0, 0, 1, -1)
+TitleLine.BackgroundColor3 = Color3.fromRGB(60, 100, 255)
+TitleLine.BorderSizePixel = 0
+local TLG = Instance.new("UIGradient", TitleLine)
+TLG.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0,0,0)),
+    ColorSequenceKeypoint.new(0.3, Color3.fromRGB(80,130,255)),
+    ColorSequenceKeypoint.new(0.7, Color3.fromRGB(80,130,255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0))
+})
+
+local TitleLabel = Instance.new("TextLabel", TitleBar)
+TitleLabel.Text = "⚡ TRANSFORM"
+TitleLabel.Size = UDim2.new(1, -52, 1, 0)
+TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.TextColor3 = Color3.fromRGB(130, 170, 255)
+TitleLabel.TextSize = 11
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local RosterBtn = Instance.new("TextButton", TitleBar)
+RosterBtn.Size = UDim2.new(0, 20, 0, 20)
+RosterBtn.Position = UDim2.new(1, -46, 0.5, -10)
+RosterBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 65)
+RosterBtn.BorderSizePixel = 0
+RosterBtn.Text = "☰"
+RosterBtn.TextColor3 = Color3.fromRGB(150, 160, 255)
+RosterBtn.TextSize = 11
+RosterBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", RosterBtn).CornerRadius = UDim.new(0, 5)
+
+local MinimizeBtn = Instance.new("TextButton", TitleBar)
+MinimizeBtn.Size = UDim2.new(0, 20, 0, 20)
+MinimizeBtn.Position = UDim2.new(1, -24, 0.5, -10)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 65)
+MinimizeBtn.BorderSizePixel = 0
+MinimizeBtn.Text = "─"
+MinimizeBtn.TextColor3 = Color3.fromRGB(150, 160, 255)
+MinimizeBtn.TextSize = 10
+MinimizeBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 5)
+
+-- CAROUSEL
+local CarouselClip = Instance.new("Frame", MainPanel)
+CarouselClip.Name = "CarouselClip"
+CarouselClip.Size = UDim2.new(1, 0, 0, 115)
+CarouselClip.Position = UDim2.new(0, 0, 0, 30)
+CarouselClip.BackgroundTransparency = 1
+CarouselClip.ClipsDescendants = true
+
+local SwipeRegion = Instance.new("TextButton", CarouselClip)
+SwipeRegion.Size = UDim2.new(1, 0, 1, 0)
+SwipeRegion.BackgroundTransparency = 1
+SwipeRegion.Text = ""
+SwipeRegion.BorderSizePixel = 0
+SwipeRegion.ZIndex = 10
+
+local CarouselTrack = Instance.new("Frame", CarouselClip)
+CarouselTrack.Name = "CarouselTrack"
+CarouselTrack.Size = UDim2.new(1, 0, 1, 0)
+CarouselTrack.BackgroundTransparency = 1
+
+local SelectedLabel = Instance.new("TextLabel", MainPanel)
+SelectedLabel.Size = UDim2.new(1, -16, 0, 16)
+SelectedLabel.Position = UDim2.new(0, 8, 0, 148)
+SelectedLabel.BackgroundTransparency = 1
+SelectedLabel.Text = "No player selected"
+SelectedLabel.TextColor3 = Color3.fromRGB(200, 210, 255)
+SelectedLabel.TextSize = 11
+SelectedLabel.Font = Enum.Font.GothamBold
+SelectedLabel.TextXAlignment = Enum.TextXAlignment.Center
+SelectedLabel.TextTruncate = Enum.TextTruncate.AtEnd
+
+local Divider = Instance.new("Frame", MainPanel)
+Divider.Size = UDim2.new(1, -24, 0, 1)
+Divider.Position = UDim2.new(0, 12, 0, 168)
+Divider.BackgroundColor3 = Color3.fromRGB(40, 50, 100)
+Divider.BorderSizePixel = 0
+
+local SearchBox = Instance.new("TextBox", MainPanel)
+SearchBox.Size = UDim2.new(0, 150, 0, 26)
+SearchBox.Position = UDim2.new(0.5, -75, 0, 174)
+SearchBox.BackgroundColor3 = Color3.fromRGB(16, 16, 28)
+SearchBox.BorderSizePixel = 0
+SearchBox.PlaceholderText = "Type username..."
+SearchBox.PlaceholderColor3 = Color3.fromRGB(70, 70, 100)
+SearchBox.Text = ""
+SearchBox.TextColor3 = Color3.fromRGB(210, 215, 255)
+SearchBox.TextSize = 10
+SearchBox.Font = Enum.Font.Gotham
+SearchBox.ClearTextOnFocus = false
+Instance.new("UICorner", SearchBox).CornerRadius = UDim.new(0, 7)
+local SST = Instance.new("UIStroke", SearchBox)
+SST.Color = Color3.fromRGB(50, 70, 150)
+SST.Thickness = 1
+local SP = Instance.new("UIPadding", SearchBox)
+SP.PaddingLeft = UDim.new(0, 8)
+
+local AddBtn = Instance.new("TextButton", MainPanel)
+AddBtn.Size = UDim2.new(0, 26, 0, 26)
+AddBtn.Position = UDim2.new(0.5, 79, 0, 174)
+AddBtn.BackgroundColor3 = Color3.fromRGB(55, 95, 245)
+AddBtn.BorderSizePixel = 0
+AddBtn.Text = "+"
+AddBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AddBtn.TextSize = 16
+AddBtn.Font = Enum.Font.GothamBold
+AddBtn.AutoButtonColor = false
+Instance.new("UICorner", AddBtn).CornerRadius = UDim.new(0, 7)
+local ABG = Instance.new("UIGradient", AddBtn)
+ABG.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(90, 130, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(45, 80, 210))
+})
+ABG.Rotation = 90
+
+local ApplyBtn = Instance.new("TextButton", MainPanel)
+ApplyBtn.Size = UDim2.new(1, -24, 0, 34)
+ApplyBtn.Position = UDim2.new(0, 12, 0, 208)
+ApplyBtn.BackgroundColor3 = Color3.fromRGB(55, 95, 245)
+ApplyBtn.BorderSizePixel = 0
+ApplyBtn.Text = "APPLY TRANSFORM"
+ApplyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ApplyBtn.TextSize = 11
+ApplyBtn.Font = Enum.Font.GothamBold
+ApplyBtn.AutoButtonColor = false
+Instance.new("UICorner", ApplyBtn).CornerRadius = UDim.new(0, 9)
+local APG = Instance.new("UIGradient", ApplyBtn)
+APG.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(90, 130, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 75, 200))
+})
+APG.Rotation = 90
+
+local StatusLabel = Instance.new("TextLabel", MainPanel)
+StatusLabel.Size = UDim2.new(1, -10, 0, 12)
+StatusLabel.Position = UDim2.new(0, 5, 0, 245)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = ""
+StatusLabel.TextColor3 = Color3.fromRGB(100, 215, 120)
+StatusLabel.TextSize = 8
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+-- ROSTER PANEL
+local RosterPanel = Instance.new("Frame")
+RosterPanel.Name = "RosterPanel"
+RosterPanel.Size = UDim2.new(0, 160, 0, 260)
+RosterPanel.BackgroundColor3 = Color3.fromRGB(8, 8, 14)
+RosterPanel.BorderSizePixel = 0
+RosterPanel.ClipsDescendants = true
+RosterPanel.Visible = false
+RosterPanel.Parent = ScreenGui
+Instance.new("UICorner", RosterPanel).CornerRadius = UDim.new(0, 16)
+local RosterStroke = Instance.new("UIStroke", RosterPanel)
+RosterStroke.Color = Color3.fromRGB(80, 120, 255)
+RosterStroke.Thickness = 1.2
+RosterStroke.Transparency = 0.3
+local RGrad = Instance.new("UIGradient", RosterPanel)
+RGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(12,12,22)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(6,6,12))
+})
+RGrad.Rotation = 135
+
+local RTitleBar = Instance.new("Frame", RosterPanel)
+RTitleBar.Size = UDim2.new(1, 0, 0, 28)
+RTitleBar.BackgroundColor3 = Color3.fromRGB(16, 16, 30)
+RTitleBar.BorderSizePixel = 0
+Instance.new("UICorner", RTitleBar).CornerRadius = UDim.new(0, 16)
+local RTFF = Instance.new("Frame", RTitleBar)
+RTFF.Size = UDim2.new(1, 0, 0.5, 0)
+RTFF.Position = UDim2.new(0, 0, 0.5, 0)
+RTFF.BackgroundColor3 = Color3.fromRGB(16, 16, 30)
+RTFF.BorderSizePixel = 0
+local RTL = Instance.new("TextLabel", RTitleBar)
+RTL.Text = "📋 ROSTER"
+RTL.Size = UDim2.new(1, -10, 1, 0)
+RTL.Position = UDim2.new(0, 10, 0, 0)
+RTL.BackgroundTransparency = 1
+RTL.TextColor3 = Color3.fromRGB(130, 170, 255)
+RTL.TextSize = 11
+RTL.Font = Enum.Font.GothamBold
+RTL.TextXAlignment = Enum.TextXAlignment.Left
+
+local RosterScroll = Instance.new("ScrollingFrame", RosterPanel)
+RosterScroll.Size = UDim2.new(1, -8, 1, -34)
+RosterScroll.Position = UDim2.new(0, 4, 0, 32)
+RosterScroll.BackgroundTransparency = 1
+RosterScroll.BorderSizePixel = 0
+RosterScroll.ScrollBarThickness = 2
+RosterScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 100, 200)
+RosterScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+local RLayout = Instance.new("UIListLayout", RosterScroll)
+RLayout.Padding = UDim.new(0, 4)
+RLayout.SortOrder = Enum.SortOrder.LayoutOrder
+local RPad = Instance.new("UIPadding", RosterScroll)
+RPad.PaddingTop = UDim.new(0, 3)
+RPad.PaddingBottom = UDim.new(0, 3)
+
+local MinimizedBtn = Instance.new("TextButton", ScreenGui)
+MinimizedBtn.Size = UDim2.new(0, 38, 0, 38)
+MinimizedBtn.Position = UDim2.new(0.5, -19, 0.5, -19)
+MinimizedBtn.BackgroundColor3 = Color3.fromRGB(40, 70, 210)
+MinimizedBtn.BorderSizePixel = 0
+MinimizedBtn.Text = "⚡"
+MinimizedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizedBtn.TextSize = 18
+MinimizedBtn.Font = Enum.Font.GothamBold
+MinimizedBtn.Visible = false
+Instance.new("UICorner", MinimizedBtn).CornerRadius = UDim.new(0, 10)
+local MBS = Instance.new("UIStroke", MinimizedBtn)
+MBS.Color = Color3.fromRGB(100, 140, 255)
+MBS.Thickness = 1.5
+
+-- ══════════════════════════════════════════════
+-- STATE
+-- ══════════════════════════════════════════════
+local selectedPlayer = nil
+local cardList = {}
+local currentIndex = 1
+local rosterOpen = false
+local HttpService = game:GetService("HttpService")
+
+local CARD_W = 120
+local CARD_H = 105
+local PANEL_W = 220
+local GAP = 12
+local CENTER_X = PANEL_W / 2 - CARD_W / 2
+
+-- NOW declare save/load after cardList exists
+local function saveToFile()
+    local data = {}
+    for _, d in ipairs(cardList) do
+        table.insert(data, {name = d.name, userId = d.userId})
+    end
+    pcall(function()
+        writefile(SAVE_FILE, HttpService:JSONEncode(data))
+    end)
+end
+
+local function loadFromFile()
+    local ok, content = pcall(function()
+        return readfile(SAVE_FILE)
+    end)
+    if not ok or not content or content == "" then return {} end
+    local dok, data = pcall(function()
+        return HttpService:JSONDecode(content)
+    end)
+    return (dok and data) and data or {}
+end
+
+local rebuildCarousel
+local rebuildRosterList
+
+-- ══════════════════════════════════════════════
+-- CAROUSEL
+-- ══════════════════════════════════════════════
+rebuildCarousel = function()
+    for _, c in ipairs(CarouselTrack:GetChildren()) do
+        if c:IsA("Frame") then c:Destroy() end
+    end
+
+    if #cardList == 0 then
+        SelectedLabel.Text = "No player selected"
+        selectedPlayer = nil
+        rebuildRosterList()
+        return
+    end
+
+    if currentIndex < 1 then currentIndex = 1 end
+    if currentIndex > #cardList then currentIndex = #cardList end
+
+    for i, data in ipairs(cardList) do
+        local offset = (i - currentIndex) * (CARD_W + GAP)
+        local xPos = CENTER_X + offset
+        local isCentre = (i == currentIndex)
+
+        local tile = Instance.new("Frame", CarouselTrack)
+        tile.Name = "Tile_"..i
+        tile.Size = UDim2.new(0, CARD_W, 0, CARD_H)
+        tile.Position = UDim2.new(0, xPos, 0.5, -CARD_H/2)
+        tile.BackgroundColor3 = Color3.fromRGB(22, 22, 38)
+        tile.BackgroundTransparency = isCentre and 0 or 0.35
+        tile.BorderSizePixel = 0
+        Instance.new("UICorner", tile).CornerRadius = UDim.new(0, 12)
+
+        local tStroke = Instance.new("UIStroke", tile)
+        tStroke.Thickness = isCentre and 2 or 0.8
+        tStroke.Color = isCentre
+            and Color3.fromRGB(100, 160, 255)
+            or Color3.fromRGB(35, 35, 60)
+
+        local img = Instance.new("ImageLabel", tile)
+        img.Size = UDim2.new(1, -8, 0, CARD_H - 28)
+        img.Position = UDim2.new(0, 4, 0, 4)
+        img.BackgroundColor3 = Color3.fromRGB(15, 15, 28)
+        img.BackgroundTransparency = isCentre and 0 or 0.5
+        img.Image = data.avatarUrl or ""
+        img.ScaleType = Enum.ScaleType.Fit
+        Instance.new("UICorner", img).CornerRadius = UDim.new(0, 9)
+
+        if not data.avatarUrl or data.avatarUrl == "" then
+            local ph = Instance.new("TextLabel", img)
+            ph.Size = UDim2.new(1, 0, 1, 0)
+            ph.BackgroundTransparency = 1
+            ph.Text = "?"
+            ph.TextSize = 26
+            ph.Font = Enum.Font.GothamBold
+            ph.TextColor3 = Color3.fromRGB(60, 60, 100)
+        end
+
+        local nameL = Instance.new("TextLabel", tile)
+        nameL.Size = UDim2.new(1, -4, 0, 20)
+        nameL.Position = UDim2.new(0, 2, 1, -22)
+        nameL.BackgroundTransparency = 1
+        nameL.Text = data.name
+        nameL.TextSize = isCentre and 9 or 8
+        nameL.Font = Enum.Font.GothamBold
+        nameL.TextColor3 = isCentre
+            and Color3.fromRGB(220, 230, 255)
+            or Color3.fromRGB(100, 110, 150)
+        nameL.TextTruncate = Enum.TextTruncate.AtEnd
+        nameL.TextXAlignment = Enum.TextXAlignment.Center
+
+        if isCentre then
+            local del = Instance.new("TextButton", tile)
+            del.Size = UDim2.new(0, 18, 0, 18)
+            del.Position = UDim2.new(1, -20, 0, 2)
+            del.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
+            del.BorderSizePixel = 0
+            del.Text = "×"
+            del.TextColor3 = Color3.fromRGB(255, 255, 255)
+            del.TextSize = 11
+            del.Font = Enum.Font.GothamBold
+            del.ZIndex = 8
+            Instance.new("UICorner", del).CornerRadius = UDim.new(0, 5)
+
+            local capData, capIdx = data, i
+            del.MouseButton1Click:Connect(function()
+                table.remove(cardList, capIdx)
+                if currentIndex > #cardList and currentIndex > 1 then
+                    currentIndex -= 1
+                end
+                if selectedPlayer and selectedPlayer.Name == capData.name then
+                    selectedPlayer = nil
+                end
+                saveToFile()
+                rebuildCarousel()
+                if #cardList > 0 then
+                    local cur = cardList[currentIndex]
+                    selectedPlayer = {Name = cur.name, UserId = cur.userId}
+                    SelectedLabel.Text = cur.name
+                else
+                    SelectedLabel.Text = "No player selected"
+                end
+            end)
+        end
+    end
+
+    local cur = cardList[currentIndex]
+    if cur then
+        selectedPlayer = {Name = cur.name, UserId = cur.userId}
+        SelectedLabel.Text = cur.name
+    end
+
+    rebuildRosterList()
+end
+
+-- ══════════════════════════════════════════════
+-- SWIPE
+-- ══════════════════════════════════════════════
+local swipeStart = nil
+SwipeRegion.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        swipeStart = input.Position.X
+    end
+end)
+SwipeRegion.InputEnded:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseButton1) and swipeStart then
+        local delta = input.Position.X - swipeStart
+        if math.abs(delta) > 25 then
+            if delta < 0 and currentIndex < #cardList then
+                currentIndex += 1
+                rebuildCarousel()
+            elseif delta > 0 and currentIndex > 1 then
+                currentIndex -= 1
+                rebuildCarousel()
+            end
+        end
+        swipeStart = nil
+    end
+end)
+
+-- ══════════════════════════════════════════════
+-- ROSTER LIST
+-- ══════════════════════════════════════════════
+rebuildRosterList = function()
+    for _, c in ipairs(RosterScroll:GetChildren()) do
+        if c:IsA("Frame") then c:Destroy() end
+    end
+
+    for i, data in ipairs(cardList) do
+        local row = Instance.new("Frame", RosterScroll)
+        row.Size = UDim2.new(1, 0, 0, 38)
+        row.BackgroundColor3 = Color3.fromRGB(18, 18, 32)
+        row.BorderSizePixel = 0
+        Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+        local isSelected = selectedPlayer and selectedPlayer.Name == data.name
+        local rStroke = Instance.new("UIStroke", row)
+        rStroke.Thickness = isSelected and 1.5 or 0.7
+        rStroke.Color = isSelected
+            and Color3.fromRGB(90, 140, 255)
+            or Color3.fromRGB(35, 35, 60)
+
+        local av = Instance.new("ImageLabel", row)
+        av.Size = UDim2.new(0, 28, 0, 28)
+        av.Position = UDim2.new(0, 5, 0.5, -14)
+        av.BackgroundTransparency = 1
+        av.Image = data.avatarUrl or ""
+        av.ScaleType = Enum.ScaleType.Fit
+        Instance.new("UICorner", av).CornerRadius = UDim.new(0, 5)
+
+        local nl = Instance.new("TextLabel", row)
+        nl.Size = UDim2.new(1, -62, 1, 0)
+        nl.Position = UDim2.new(0, 38, 0, 0)
+        nl.BackgroundTransparency = 1
+        nl.Text = data.name
+        nl.TextSize = 9
+        nl.Font = Enum.Font.GothamBold
+        nl.TextColor3 = isSelected
+            and Color3.fromRGB(200, 215, 255)
+            or Color3.fromRGB(140, 150, 200)
+        nl.TextTruncate = Enum.TextTruncate.AtEnd
+        nl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local del = Instance.new("TextButton", row)
+        del.Size = UDim2.new(0, 20, 0, 20)
+        del.Position = UDim2.new(1, -24, 0.5, -10)
+        del.BackgroundColor3 = Color3.fromRGB(160, 40, 40)
+        del.BorderSizePixel = 0
+        del.Text = "×"
+        del.TextColor3 = Color3.fromRGB(255, 255, 255)
+        del.TextSize = 11
+        del.Font = Enum.Font.GothamBold
+        del.ZIndex = 5
+        Instance.new("UICorner", del).CornerRadius = UDim.new(0, 5)
+
+        local btn = Instance.new("TextButton", row)
+        btn.Size = UDim2.new(1, -28, 1, 0)
+        btn.BackgroundTransparency = 1
+        btn.Text = ""
+        btn.BorderSizePixel = 0
+
+        local capData, capIdx = data, i
+        btn.MouseButton1Click:Connect(function()
+            selectedPlayer = {Name = capData.name, UserId = capData.userId}
+            for j, d in ipairs(cardList) do
+                if d.name == capData.name then currentIndex = j break end
+            end
+            rebuildCarousel()
+            SelectedLabel.Text = capData.name
+            StatusLabel.Text = ""
+        end)
+
+        del.MouseButton1Click:Connect(function()
+            table.remove(cardList, capIdx)
+            if currentIndex > #cardList and currentIndex > 1 then currentIndex -= 1 end
+            if selectedPlayer and selectedPlayer.Name == capData.name then
+                selectedPlayer = nil
+                SelectedLabel.Text = "No player selected"
+            end
+            saveToFile()
+            rebuildCarousel()
+            rebuildRosterList()
+            StatusLabel.TextColor3 = Color3.fromRGB(220, 100, 100)
+            StatusLabel.Text = "Removed: " .. capData.name
+        end)
+    end
+
+    task.wait()
+    RosterScroll.CanvasSize = UDim2.new(0, 0, 0, RLayout.AbsoluteContentSize.Y + 8)
+end
+
+-- ══════════════════════════════════════════════
+-- ROSTER OPEN/CLOSE
+-- ══════════════════════════════════════════════
+local function updateRosterPos()
+    local mp = MainPanel.AbsolutePosition
+    RosterPanel.Position = UDim2.new(0, mp.X - 168, 0, mp.Y)
+end
+
+local function openRoster()
+    updateRosterPos()
+    RosterPanel.Visible = true
+    rosterOpen = true
+    RosterBtn.TextColor3 = Color3.fromRGB(90, 140, 255)
+    rebuildRosterList()
+end
+
+local function closeRoster()
+    RosterPanel.Visible = false
+    rosterOpen = false
+    RosterBtn.TextColor3 = Color3.fromRGB(150, 160, 255)
+end
+
+RosterBtn.MouseButton1Click:Connect(function()
+    if rosterOpen then closeRoster() else openRoster() end
+end)
+
+-- ══════════════════════════════════════════════
+-- DRAGGABLE
+-- ══════════════════════════════════════════════
+do
+    local dragging, dragStart, startPos = false, nil, nil
+    TitleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = MainPanel.Position
+        end
+    end)
+    TitleBar.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - dragStart
+            MainPanel.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + d.X,
+                startPos.Y.Scale, startPos.Y.Offset + d.Y)
+            if rosterOpen then updateRosterPos() end
+        end
+    end)
+end
+
+do
+    local dragging, dragStart, startPos = false, nil, nil
+    MinimizedBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = MinimizedBtn.Position
+        end
+    end)
+    MinimizedBtn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - dragStart
+            MinimizedBtn.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + d.X,
+                startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end)
+end
+
+-- ══════════════════════════════════════════════
+-- MINIMIZE
+-- ══════════════════════════════════════════════
+MinimizeBtn.MouseButton1Click:Connect(function()
+    if rosterOpen then closeRoster() end
+    local p = MainPanel.AbsolutePosition
+    MinimizedBtn.Position = UDim2.new(0, p.X + 8, 0, p.Y + 8)
+    MainPanel.Visible = false
+    MinimizedBtn.Visible = true
+end)
+MinimizedBtn.MouseButton1Click:Connect(function()
+    MinimizedBtn.Visible = false
+    MainPanel.Visible = true
+end)
+
+-- ══════════════════════════════════════════════
+-- ADD PLAYER
+-- ══════════════════════════════════════════════
+local function searchAndAdd(username)
+    username = username:match("^%s*(.-)%s*$")
+    if username == "" then return end
+    for _, d in ipairs(cardList) do
+        if d.name:lower() == username:lower() then
+            StatusLabel.TextColor3 = Color3.fromRGB(220, 180, 50)
+            StatusLabel.Text = username .. " already added"
+            return
+        end
+    end
+    StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 80)
+    StatusLabel.Text = "Searching..."
+
+    task.spawn(function()
+        local ok, userId = pcall(function()
+            return Players:GetUserIdFromNameAsync(username)
+        end)
+        if not ok or not userId then
+            StatusLabel.TextColor3 = Color3.fromRGB(220, 80, 80)
+            StatusLabel.Text = "User not found"
+            return
+        end
+        local iok, url = pcall(function()
+            return Players:GetUserThumbnailAsync(userId,
+                Enum.ThumbnailType.HeadShot,
+                Enum.ThumbnailSize.Size100x100)
+        end)
+        local avatarUrl = (iok and url) and url or ""
+        table.insert(cardList, {name = username, userId = userId, avatarUrl = avatarUrl})
+        currentIndex = #cardList
+        saveToFile()
+        rebuildCarousel()
+        if rosterOpen then rebuildRosterList() end
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 215, 120)
+        StatusLabel.Text = "Added: " .. username
+        SearchBox.Text = ""
+    end)
+end
+
+AddBtn.MouseButton1Click:Connect(function() searchAndAdd(SearchBox.Text) end)
+SearchBox.FocusLost:Connect(function(ep) if ep then searchAndAdd(SearchBox.Text) end end)
+
+-- ══════════════════════════════════════════════
+-- APPLY
+-- ══════════════════════════════════════════════
+ApplyBtn.MouseButton1Click:Connect(function()
+    if not selectedPlayer then
+        StatusLabel.TextColor3 = Color3.fromRGB(220, 80, 80)
+        StatusLabel.Text = "Select a player first!"
+        return
+    end
+    TweenService:Create(ApplyBtn, TweenInfo.new(0.07), {Size = UDim2.new(1,-28,0,30)}):Play()
+    task.wait(0.1)
+    TweenService:Create(ApplyBtn, TweenInfo.new(0.1), {Size = UDim2.new(1,-24,0,34)}):Play()
+    local ok = pcall(function()
+        ReplicatedStorage:WaitForChild("TransformEvent"):FireServer(
+            selectedPlayer.Name, selectedPlayer.UserId)
+    end)
+    if ok then
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 215, 120)
+        StatusLabel.Text = "✓ Sent: " .. selectedPlayer.Name
+    else
+        StatusLabel.TextColor3 = Color3.fromRGB(220, 80, 80)
+        StatusLabel.Text = "Remote error!"
+    end
+end)
+
+ApplyBtn.MouseEnter:Connect(function()
+    TweenService:Create(ApplyBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80,120,255)}):Play()
+end)
+ApplyBtn.MouseLeave:Connect(function()
+    TweenService:Create(ApplyBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(55,95,245)}):Play()
+end)
+
+-- ══════════════════════════════════════════════
+-- LOAD SAVED ON START
+-- ══════════════════════════════════════════════
+task.spawn(function()
+    local saved = loadFromFile()
+    if #saved > 0 then
+        StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 80)
+        StatusLabel.Text = "Loading saved roster..."
+        for _, entry in ipairs(saved) do
+            local iok, url = pcall(function()
+                return Players:GetUserThumbnailAsync(
+                    entry.userId,
+                    Enum.ThumbnailType.HeadShot,
+                    Enum.ThumbnailSize.Size100x100)
+            end)
+            entry.avatarUrl = (iok and url) and url or ""
+            table.insert(cardList, entry)
+        end
+        currentIndex = 1
+        rebuildCarousel()
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 215, 120)
+        StatusLabel.Text = "✓ Roster loaded!"
+        task.wait(2)
+        StatusLabel.Text = ""
+    end
+end)
